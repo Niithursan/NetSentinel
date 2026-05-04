@@ -9,6 +9,7 @@ import {
   Clock,
   X,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import { fetchScans, createScan, deleteScan, type ScanSummary } from '../api';
 
@@ -20,6 +21,7 @@ function NewScanModal({
   onClose: () => void;
   onSubmit: (data: { target: string; scan_type: string; ports?: string; timeout?: number }) => void;
   isLoading: boolean;
+  error: Error | null;
 }) {
   const [target, setTarget] = useState('');
   const [scanType, setScanType] = useState('full');
@@ -100,6 +102,24 @@ function NewScanModal({
                 />
               </div>
             </div>
+
+            {error && (
+              <div style={{
+                marginTop: '16px',
+                padding: '12px',
+                background: 'var(--critical-dim)',
+                color: 'var(--critical)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                border: '1px solid var(--critical)',
+              }}>
+                <AlertTriangle size={16} />
+                <span>{error.message.includes('Failed to fetch') ? 'Cannot connect to backend server. Is it running?' : error.message}</span>
+              </div>
+            )}
           </div>
 
           <div className="modal-footer">
@@ -278,6 +298,7 @@ export default function ScansPage() {
           onClose={() => setShowModal(false)}
           onSubmit={(data) => createMutation.mutate(data)}
           isLoading={createMutation.isPending}
+          error={createMutation.error as Error}
         />
       )}
     </div>

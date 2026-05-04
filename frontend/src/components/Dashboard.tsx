@@ -138,7 +138,6 @@ export default function Dashboard() {
   }
 
   if (error || !stats) {
-    // Show demo data when backend is unavailable
     const demoStats: DashboardStats = {
       total_scans: 0,
       total_hosts_discovered: 0,
@@ -150,7 +149,27 @@ export default function Dashboard() {
       low_count: 0,
       recent_scans: [],
     };
-    return <DashboardContent stats={demoStats} />;
+    return (
+      <>
+        <div style={{
+          background: 'var(--critical-dim)',
+          color: 'var(--critical)',
+          padding: '12px 20px',
+          borderRadius: 'var(--radius-lg)',
+          marginBottom: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          border: '1px solid var(--critical)',
+          fontSize: '14px',
+          fontWeight: 500
+        }}>
+          <AlertTriangle size={20} />
+          <span>Backend Offline: Cannot connect to http://localhost:8000. Please ensure the backend server is running.</span>
+        </div>
+        <DashboardContent stats={demoStats} />
+      </>
+    );
   }
 
   return <DashboardContent stats={stats} />;

@@ -4,6 +4,16 @@ echo   NetSentinel - Starting Services
 echo ====================================
 echo.
 
+:: Check if backend port is already in use
+netstat -ano | findstr ":8000" | findstr "LISTENING" > nul
+if %errorlevel% equ 0 (
+    echo [!] ERROR: Port 8000 is already in use.
+    echo [!] Backend may already be running or another process is using it.
+    echo [!] Please close the existing process and try again.
+    pause
+    exit /b
+)
+
 :: Start backend
 echo [1/2] Starting Backend (FastAPI)...
 cd /d "%~dp0backend"
