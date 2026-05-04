@@ -173,6 +173,10 @@ async def run_scan_task(scan_id: int, target: str, scan_type: str,
 # Scan Endpoints
 # ──────────────────────────────────────────────
 
+@router.options("/{path:path}")
+async def options_handler(path: str):
+    return {"status": "ok"}
+
 @router.post("/scans", response_model=ScanSummary, status_code=201)
 async def create_scan(
     scan_req: ScanCreate,
