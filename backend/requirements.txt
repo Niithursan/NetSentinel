@@ -6,6 +6,7 @@ python-multipart==0.0.9
 # Database
 sqlalchemy==2.0.35
 aiosqlite==0.20.0
+greenlet==3.5.0
 
 # Networking & Scanning
 scapy==2.6.0
