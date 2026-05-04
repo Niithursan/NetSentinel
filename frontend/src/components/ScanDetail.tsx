@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { fetchScan, fetchRemediation, type ScanDetail, type HostInfo, type VulnerabilityInfo } from '../api';
 import { useState } from 'react';
+import ReactMarkdown from 'react-markdown';
 
 function SeverityBadge({ severity }: { severity: string }) {
   return <span className={`badge badge-${severity}`}>{severity}</span>;
@@ -169,6 +170,7 @@ export default function ScanDetailPage() {
   const { data: scan, isLoading } = useQuery<ScanDetail>({
     queryKey: ['scan', scanId],
     queryFn: () => fetchScan(scanId),
+    enabled: !isNaN(scanId),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       return status === 'running' || status === 'pending' ? 3000 : false;
@@ -316,16 +318,8 @@ export default function ScanDetailPage() {
               <h3 className="card-title">AI Remediation Advisory</h3>
             </div>
           </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-mono)',
-              fontSize: '13px',
-              lineHeight: '1.7',
-              color: 'var(--text-secondary)',
-              whiteSpace: 'pre-wrap',
-            }}
-          >
-            {remediationMutation.data.remediation_steps}
+          <div className="markdown-content">
+            <ReactMarkdown>{remediationMutation.data.remediation_steps}</ReactMarkdown>
           </div>
         </div>
       )}

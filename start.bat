@@ -8,8 +8,9 @@ echo.
 netstat -ano | findstr ":8000" | findstr "LISTENING" > nul
 if %errorlevel% equ 0 (
     echo [!] ERROR: Port 8000 is already in use.
-    echo [!] Backend may already be running or another process is using it.
-    echo [!] Please close the existing process and try again.
+    echo [!] Backend may already be running, or another process is using it.
+    echo [!] TIP: If you have Docker running, check if 'netsentinel-api' is active.
+    echo [!] Please close the existing process/container and try again.
     pause
     exit /b
 )

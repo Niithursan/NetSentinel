@@ -4,7 +4,7 @@
  * Provides typed API calls and caching via @tanstack/react-query.
  */
 
-const API_BASE = 'http://localhost:8001/api';
+const API_BASE = 'http://localhost:8000/api';
 
 // ─── Types ─────────────────────────────────────────────────────
 

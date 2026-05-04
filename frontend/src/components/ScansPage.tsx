@@ -17,6 +17,7 @@ function NewScanModal({
   onClose,
   onSubmit,
   isLoading,
+  error,
 }: {
   onClose: () => void;
   onSubmit: (data: { target: string; scan_type: string; ports?: string; timeout?: number }) => void;
