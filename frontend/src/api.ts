@@ -29,9 +29,11 @@ export interface VulnerabilityInfo {
   severity: SeverityLevel;
   port_number: number | null;
   service: string | null;
-  remediation: string | null;
   cve_id: string | null;
-  detected_at: string;
+  host_ip?: string;
+  scan_id?: number;
+  scan_target?: string;
+  created_at?: string;
 }
 
 export interface HostInfo {
@@ -144,3 +146,9 @@ export const checkCompliance = (scan_id: number, baseline_id: number) =>
   apiFetch<Record<string, unknown>>(`/compliance/check?scan_id=${scan_id}&baseline_id=${baseline_id}`, {
     method: 'POST',
   });
+
+// Vulnerabilities
+export const fetchVulnerabilities = () => apiFetch<VulnerabilityInfo[]>('/vulnerabilities');
+
+// Activity Log
+export const fetchActivityLog = () => apiFetch<any[]>('/activity');

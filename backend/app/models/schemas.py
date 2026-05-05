@@ -125,16 +125,27 @@ class Vulnerability(Base):
 
 
 class GoldenBaseline(Base):
-    """Golden Configuration baseline for compliance checks."""
+    """A baseline configuration for compliance checking."""
     __tablename__ = "golden_baselines"
 
     id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False, unique=True)
+    name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
-    framework = Column(String(100), nullable=True)  # e.g. CIS, NIST
-    rules = Column(JSON, nullable=False)  # List of compliance rules
+    framework = Column(String(50), nullable=True)  # e.g., "CIS", "NIST", "Custom"
+    rules = Column(JSON, nullable=False)  # JSON array of compliance rules
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+class SystemEvent(Base):
+    """System-wide activity log events."""
+    __tablename__ = "system_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String(50), nullable=False) # 'scan_started', 'scan_completed', 'baseline_created', etc.
+    description = Column(Text, nullable=False)
+    severity = Column(String(20), default="info") # 'info', 'warning', 'error'
+    created_at = Column(DateTime, default=datetime.utcnow)
+    metadata_json = Column(JSON, nullable=True) # Extra context
 
 
 # ──────────────────────────────────────────────
@@ -272,3 +283,15 @@ class DashboardStats(BaseModel):
     medium_count: int
     low_count: int
     recent_scans: list[ScanSummary]
+
+class SystemEventResponse(BaseModel):
+    id: int
+    event_type: str
+    description: str
+    severity: str
+    created_at: datetime
+    metadata_json: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+

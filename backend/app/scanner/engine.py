@@ -115,7 +115,12 @@ class ScannerEngine:
             arp_request = Ether(dst="ff:ff:ff:ff:ff:ff") / ARP(pdst=target)
             answered, _ = srp(arp_request, timeout=self.timeout, retry=1)
 
+            seen_ips = set()
             for sent, received in answered:
+                if received.psrc in seen_ips:
+                    continue
+                seen_ips.add(received.psrc)
+                
                 start = time.time()
                 host = HostResult(
                     ip=received.psrc,

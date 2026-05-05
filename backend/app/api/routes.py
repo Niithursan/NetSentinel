@@ -15,12 +15,12 @@ from sqlalchemy.orm import selectinload
 
 from app.models.database import get_db
 from app.models.schemas import (
-    Scan, Host, Port, Vulnerability, GoldenBaseline,
+    Scan, Host, Port, Vulnerability, GoldenBaseline, SystemEvent,
     ScanCreate, ScanResponse, ScanSummary, HostResponse,
     BaselineCreate, BaselineResponse,
     RemediationRequest, RemediationResponse,
     DashboardStats, ScanStatus, SeverityLevel,
-    VulnerabilityResponse,
+    VulnerabilityResponse, SystemEventResponse
 )
 from app.scanner.engine import ScannerEngine, TOP_100_PORTS
 from app.core.gemini import gemini_client
@@ -32,6 +32,17 @@ router = APIRouter(prefix="/api", tags=["NetSentinel API"])
 # ──────────────────────────────────────────────
 # Background Scan Task
 # ──────────────────────────────────────────────
+
+async def log_activity(db: AsyncSession, event_type: str, description: str, severity: str = "info", metadata: dict = None):
+    """Helper to log system events."""
+    event = SystemEvent(
+        event_type=event_type,
+        description=description,
+        severity=severity,
+        metadata_json=metadata
+    )
+    db.add(event)
+    await db.commit()
 
 async def run_scan_task(scan_id: int, target: str, scan_type: str,
                         ports: Optional[str], timeout: int):
@@ -133,7 +144,7 @@ async def run_scan_task(scan_id: int, target: str, scan_type: str,
                             Host.ip_address == host_result.ip
                         )
                         result = await db.execute(stmt)
-                        db_host = result.scalar_one_or_none()
+                        db_host = result.scalars().first()
                         if db_host:
                             db_vuln = Vulnerability(
                                 host_id=db_host.id,
@@ -152,6 +163,7 @@ async def run_scan_task(scan_id: int, target: str, scan_type: str,
             scan = await db.get(Scan, scan_id)
             if scan.status == ScanStatus.CANCELLED:
                 logger.info(f"Scan {scan_id} was cancelled by user. Discarding results.")
+                await log_activity(db, "scan_cancelled", f"Scan {scan_id} on {target} was cancelled during execution.", "warning", {"scan_id": scan_id})
                 return
 
             # Update scan status
@@ -161,6 +173,8 @@ async def run_scan_task(scan_id: int, target: str, scan_type: str,
             scan.total_open_ports = total_open_ports
             scan.total_vulnerabilities = total_vulns
             await db.commit()
+            
+            await log_activity(db, "scan_completed", f"Scan {scan_id} on {target} completed successfully. Found {len(hosts)} hosts and {total_vulns} vulnerabilities.", "info", {"scan_id": scan_id, "hosts": len(hosts)})
 
             logger.info(f"Scan {scan_id} completed: {len(hosts)} hosts, "
                         f"{total_open_ports} open ports, {total_vulns} vulnerabilities")
@@ -173,6 +187,7 @@ async def run_scan_task(scan_id: int, target: str, scan_type: str,
                 scan.error_message = str(e)
                 scan.completed_at = datetime.utcnow()
                 await db.commit()
+                await log_activity(db, "scan_failed", f"Scan {scan_id} on {target} failed: {str(e)}", "error", {"scan_id": scan_id})
 
 
 # ──────────────────────────────────────────────
@@ -209,6 +224,7 @@ async def create_scan(
         scan_req.timeout or 5,
     )
 
+    await log_activity(db, "scan_started", f"Started {scan_req.scan_type} scan on {scan_req.target}", "info", {"scan_id": scan.id, "target": scan_req.target})
     logger.info(f"Scan {scan.id} created for target: {scan_req.target}")
     return scan
 
@@ -252,6 +268,43 @@ async def get_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
     return scan
 
 
+# ──────────────────────────────────────────────
+# Vulnerabilities Endpoints
+# ──────────────────────────────────────────────
+
+@router.get("/vulnerabilities", response_model=list[dict])
+async def list_vulnerabilities(db: AsyncSession = Depends(get_db)):
+    """List all vulnerabilities across all scans with context."""
+    # We will join Vulnerability -> Host -> Scan to return a flattened dictionary
+    stmt = (
+        select(Vulnerability, Host.ip_address, Scan.id, Scan.target)
+        .join(Host, Vulnerability.host_id == Host.id)
+        .join(Scan, Host.scan_id == Scan.id)
+        .order_by(Vulnerability.severity, Vulnerability.id.desc())
+    )
+    result = await db.execute(stmt)
+    
+    vulns = []
+    for vuln, ip, scan_id, target in result.all():
+        vuln_dict = {
+            "id": vuln.id,
+            "title": vuln.title,
+            "severity": vuln.severity,
+            "port_number": vuln.port_number,
+            "service": vuln.service,
+            "cve_id": vuln.cve_id,
+            "description": vuln.description,
+            "host_ip": ip,
+            "scan_id": scan_id,
+            "scan_target": target,
+            "created_at": vuln.created_at.isoformat() if vuln.created_at else None
+        }
+        vulns.append(vuln_dict)
+        
+    return vulns
+
+
+
 @router.delete("/scans/{scan_id}", status_code=204)
 async def delete_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
     """Delete a scan and all its associated data."""
@@ -283,6 +336,19 @@ async def cancel_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
         scan.status = ScanStatus.CANCELLED
         scan.completed_at = datetime.utcnow()
         await db.commit()
+        await log_activity(db, "scan_cancelled", f"Scan {scan_id} cancelled by user.", "warning", {"scan_id": scan_id})
+
+
+# ──────────────────────────────────────────────
+# System Activity
+# ──────────────────────────────────────────────
+
+@router.get("/activity", response_model=list[SystemEventResponse])
+async def list_activity(limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """List recent system activity events."""
+    stmt = select(SystemEvent).order_by(SystemEvent.created_at.desc()).limit(limit)
+    result = await db.execute(stmt)
+    return result.scalars().all()
 
 
 # ──────────────────────────────────────────────
