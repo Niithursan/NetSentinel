@@ -249,9 +249,20 @@ async def get_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
 @router.delete("/scans/{scan_id}", status_code=204)
 async def delete_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
     """Delete a scan and all its associated data."""
-    scan = await db.get(Scan, scan_id)
+    stmt = (
+        select(Scan)
+        .options(
+            selectinload(Scan.hosts).selectinload(Host.ports),
+            selectinload(Scan.hosts).selectinload(Host.vulnerabilities),
+        )
+        .where(Scan.id == scan_id)
+    )
+    result = await db.execute(stmt)
+    scan = result.scalar_one_or_none()
+    
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
+        
     await db.delete(scan)
     await db.commit()
 
