@@ -304,7 +304,7 @@ async def list_activity(limit: int = 100, db: AsyncSession = Depends(get_db)):
 # Remediation Endpoints
 # ──────────────────────────────────────────────
 
-@router.post("/remediate", response_model=RemediationResponse)
+@router.post("/remediation", response_model=RemediationResponse)
 async def generate_remediation(req: RemediationRequest):
     """Generates AI remediation steps."""
     remediation_text = await gemini_client.generate_remediation(
