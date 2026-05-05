@@ -124,12 +124,6 @@ class ScannerEngine:
                     response_time_ms=round((time.time() - start) * 1000, 2),
                 )
 
-                # Attempt reverse DNS
-                try:
-                    host.hostname = socket.gethostbyaddr(received.psrc)[0]
-                except (socket.herror, socket.gaierror):
-                    pass
-
                 hosts.append(host)
                 logger.info(f"  Discovered: {host.ip} ({host.mac})")
 

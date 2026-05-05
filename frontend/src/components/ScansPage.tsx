@@ -11,7 +11,7 @@ import {
   Loader2,
   AlertTriangle,
 } from 'lucide-react';
-import { fetchScans, createScan, deleteScan, type ScanSummary } from '../api';
+import { fetchScans, createScan, deleteScan, cancelScan, type ScanSummary } from '../api';
 
 function NewScanModal({
   onClose,
@@ -27,7 +27,7 @@ function NewScanModal({
   const [target, setTarget] = useState('');
   const [scanType, setScanType] = useState('full');
   const [ports, setPorts] = useState('');
-  const [timeout, setTimeout] = useState(5);
+  const [scanTimeout, setScanTimeout] = useState(5);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +35,7 @@ function NewScanModal({
       target,
       scan_type: scanType,
       ports: ports || undefined,
-      timeout,
+      timeout: scanTimeout,
     });
   };
 
@@ -98,8 +98,8 @@ function NewScanModal({
                   type="number"
                   min={1}
                   max={30}
-                  value={timeout}
-                  onChange={(e) => setTimeout(Number(e.target.value))}
+                  value={scanTimeout}
+                  onChange={(e) => setScanTimeout(Number(e.target.value))}
                 />
               </div>
             </div>
@@ -169,12 +169,24 @@ export default function ScansPage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteScan,
-    onSuccess: () => {
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['scans'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     },
     onError: (error) => {
-      alert(`Failed to delete scan: ${error.message}`);
+      if (!error.message.includes('404')) {
+        alert(`Failed to delete scan: ${error.message}`);
+      }
+    }
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: cancelScan,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scans'] });
+    },
+    onError: (error) => {
+      alert(`Failed to cancel scan: ${error.message}`);
     }
   });
 
@@ -269,19 +281,36 @@ export default function ScansPage() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                        {scan.status === 'running' && (
+                          <button
+                            className="btn btn-sm btn-secondary"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              cancelMutation.mutate(scan.id);
+                            }}
+                            title="Stop Scan"
+                            style={{ backgroundColor: 'rgba(255, 171, 0, 0.1)', color: '#FFAB00', borderColor: 'rgba(255, 171, 0, 0.2)' }}
+                          >
+                            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                              ■
+                            </span>
+                          </button>
+                        )}
                         <button
                           className="btn btn-sm btn-secondary"
-                          onClick={() => navigate(`/scans/${scan.id}`)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/scans/${scan.id}`);
+                          }}
                           title="View Details"
                         >
                           <Eye size={14} />
                         </button>
                         <button
                           className="btn btn-sm btn-danger"
-                          onClick={() => {
-                            if (confirm('Delete this scan and all its data?')) {
-                              deleteMutation.mutate(scan.id);
-                            }
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMutation.mutate(scan.id);
                           }}
                           title="Delete Scan"
                         >

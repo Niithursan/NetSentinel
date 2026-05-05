@@ -148,6 +148,12 @@ async def run_scan_task(scan_id: int, target: str, scan_type: str,
                             total_vulns += 1
                         break
 
+            # Check if cancelled during execution
+            scan = await db.get(Scan, scan_id)
+            if scan.status == ScanStatus.CANCELLED:
+                logger.info(f"Scan {scan_id} was cancelled by user. Discarding results.")
+                return
+
             # Update scan status
             scan.status = ScanStatus.COMPLETED
             scan.completed_at = datetime.utcnow()
@@ -265,6 +271,18 @@ async def delete_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
         
     await db.delete(scan)
     await db.commit()
+
+@router.post("/scans/{scan_id}/cancel", status_code=204)
+async def cancel_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
+    """Cancel a running scan."""
+    scan = await db.get(Scan, scan_id)
+    if not scan:
+        raise HTTPException(status_code=404, detail="Scan not found")
+    
+    if scan.status == ScanStatus.RUNNING:
+        scan.status = ScanStatus.CANCELLED
+        scan.completed_at = datetime.utcnow()
+        await db.commit()
 
 
 # ──────────────────────────────────────────────

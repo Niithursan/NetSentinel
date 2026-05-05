@@ -120,6 +120,8 @@ export const createScan = (data: { target: string; scan_type: string; ports?: st
   apiFetch<ScanSummary>('/scans', { method: 'POST', body: JSON.stringify(data) });
 export const deleteScan = (id: number) =>
   apiFetch<void>(`/scans/${id}`, { method: 'DELETE' });
+export const cancelScan = (id: number) =>
+  apiFetch<void>(`/scans/${id}/cancel`, { method: 'POST' });
 
 // Remediation
 export const fetchRemediation = (host_ip: string, findings: Record<string, unknown>[]) =>
