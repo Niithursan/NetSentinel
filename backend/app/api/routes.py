@@ -1,8 +1,4 @@
-"""
-NetSentinel - API Routes
-
-FastAPI endpoints for managing scans, hosts, baselines, and AI remediation.
-"""
+"""API routes for scans, hosts, baselines, and AI remediation."""
 
 import logging
 from datetime import datetime
@@ -34,7 +30,7 @@ router = APIRouter(prefix="/api", tags=["NetSentinel API"])
 # ──────────────────────────────────────────────
 
 async def log_activity(db: AsyncSession, event_type: str, description: str, severity: str = "info", metadata: dict = None):
-    """Helper to log system events."""
+    """Logs a system event to the database."""
     event = SystemEvent(
         event_type=event_type,
         description=description,
@@ -46,7 +42,7 @@ async def log_activity(db: AsyncSession, event_type: str, description: str, seve
 
 async def run_scan_task(scan_id: int, target: str, scan_type: str,
                         ports: Optional[str], timeout: int):
-    """Execute a scan in the background and persist results."""
+    """Runs a network scan in the background and saves results."""
     from app.models.database import async_session
 
     async with async_session() as db:
@@ -198,44 +194,34 @@ async def run_scan_task(scan_id: int, target: str, scan_type: str,
 async def options_handler(path: str):
     return {"status": "ok"}
 
-@router.post("/scans", response_model=ScanSummary, status_code=201)
-async def create_scan(
-    scan_req: ScanCreate,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-):
-    """Create and launch a new network scan."""
+@router.post("/scans", response_model=ScanResponse, status_code=202)
+async def create_scan(scan_in: ScanCreate, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
+    """Starts a new network scan."""
     scan = Scan(
-        target=scan_req.target,
-        scan_type=scan_req.scan_type,
+        target=scan_in.target,
+        scan_type=scan_in.scan_type,
         status=ScanStatus.PENDING,
     )
     db.add(scan)
     await db.commit()
     await db.refresh(scan)
 
-    # Launch scan in background
     background_tasks.add_task(
         run_scan_task,
         scan.id,
-        scan_req.target,
-        scan_req.scan_type,
-        scan_req.ports,
-        scan_req.timeout or 5,
+        scan_in.target,
+        scan_in.scan_type,
+        scan_in.ports,
+        scan_in.timeout or 5,
     )
 
-    await log_activity(db, "scan_started", f"Started {scan_req.scan_type} scan on {scan_req.target}", "info", {"scan_id": scan.id, "target": scan_req.target})
-    logger.info(f"Scan {scan.id} created for target: {scan_req.target}")
+    await log_activity(db, "scan_started", f"Started scan {scan.id}", "info", {"scan_id": scan.id})
     return scan
 
 
 @router.get("/scans", response_model=list[ScanSummary])
-async def list_scans(
-    limit: int = 50,
-    offset: int = 0,
-    db: AsyncSession = Depends(get_db),
-):
-    """List all scans, ordered by most recent."""
+async def list_scans(limit: int = 50, offset: int = 0, db: AsyncSession = Depends(get_db)):
+    """Gets list of scans."""
     stmt = (
         select(Scan)
         .order_by(Scan.created_at.desc())
@@ -248,7 +234,7 @@ async def list_scans(
 
 @router.get("/scans/{scan_id}", response_model=ScanResponse)
 async def get_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
-    """Get full scan details including hosts, ports, and vulnerabilities."""
+    """Gets scan details."""
     stmt = (
         select(Scan)
         .options(
@@ -268,46 +254,9 @@ async def get_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
     return scan
 
 
-# ──────────────────────────────────────────────
-# Vulnerabilities Endpoints
-# ──────────────────────────────────────────────
-
-@router.get("/vulnerabilities", response_model=list[dict])
-async def list_vulnerabilities(db: AsyncSession = Depends(get_db)):
-    """List all vulnerabilities across all scans with context."""
-    # We will join Vulnerability -> Host -> Scan to return a flattened dictionary
-    stmt = (
-        select(Vulnerability, Host.ip_address, Scan.id, Scan.target)
-        .join(Host, Vulnerability.host_id == Host.id)
-        .join(Scan, Host.scan_id == Scan.id)
-        .order_by(Vulnerability.severity, Vulnerability.id.desc())
-    )
-    result = await db.execute(stmt)
-    
-    vulns = []
-    for vuln, ip, scan_id, target in result.all():
-        vuln_dict = {
-            "id": vuln.id,
-            "title": vuln.title,
-            "severity": vuln.severity.value if hasattr(vuln.severity, 'value') else vuln.severity,
-            "port_number": vuln.port_number,
-            "service": vuln.service,
-            "cve_id": vuln.cve_id,
-            "description": vuln.description,
-            "host_ip": ip,
-            "scan_id": scan_id,
-            "scan_target": target,
-            "detected_at": vuln.detected_at.isoformat() if vuln.detected_at else None
-        }
-        vulns.append(vuln_dict)
-        
-    return vulns
-
-
-
-@router.delete("/scans/{scan_id}", status_code=204)
+@router.delete("/scans/{scan_id}")
 async def delete_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
-    """Delete a scan and all its associated data."""
+    """Deletes a scan."""
     stmt = (
         select(Scan)
         .options(
@@ -325,9 +274,9 @@ async def delete_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
     await db.delete(scan)
     await db.commit()
 
-@router.post("/scans/{scan_id}/cancel", status_code=204)
+@router.post("/scans/{scan_id}/cancel")
 async def cancel_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
-    """Cancel a running scan."""
+    """Cancels a running scan."""
     scan = await db.get(Scan, scan_id)
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
@@ -336,7 +285,7 @@ async def cancel_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
         scan.status = ScanStatus.CANCELLED
         scan.completed_at = datetime.utcnow()
         await db.commit()
-        await log_activity(db, "scan_cancelled", f"Scan {scan_id} cancelled by user.", "warning", {"scan_id": scan_id})
+        await log_activity(db, "scan_cancelled", f"Scan {scan_id} cancelled.", "warning", {"scan_id": scan_id})
 
 
 # ──────────────────────────────────────────────
@@ -345,7 +294,7 @@ async def cancel_scan(scan_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.get("/activity", response_model=list[SystemEventResponse])
 async def list_activity(limit: int = 100, db: AsyncSession = Depends(get_db)):
-    """List recent system activity events."""
+    """Gets system activity logs."""
     stmt = select(SystemEvent).order_by(SystemEvent.created_at.desc()).limit(limit)
     result = await db.execute(stmt)
     return result.scalars().all()
@@ -355,20 +304,20 @@ async def list_activity(limit: int = 100, db: AsyncSession = Depends(get_db)):
 # Remediation Endpoints
 # ──────────────────────────────────────────────
 
-@router.post("/remediation", response_model=RemediationResponse)
-async def get_remediation(request: RemediationRequest):
-    """Get AI-generated remediation steps for a set of findings."""
+@router.post("/remediate", response_model=RemediationResponse)
+async def generate_remediation(req: RemediationRequest):
+    """Generates AI remediation steps."""
     remediation_text = await gemini_client.generate_remediation(
-        request.host_ip, request.findings
+        req.host_ip, req.findings
     )
 
     severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
-    for f in request.findings:
+    for f in req.findings:
         sev = f.get("severity", "info").lower()
         severity_counts[sev] = severity_counts.get(sev, 0) + 1
 
     return RemediationResponse(
-        host_ip=request.host_ip,
+        host_ip=req.host_ip,
         remediation_steps=remediation_text,
         severity_summary=severity_counts,
         generated_at=datetime.utcnow(),
@@ -379,17 +328,14 @@ async def get_remediation(request: RemediationRequest):
 # Baseline Endpoints
 # ──────────────────────────────────────────────
 
-@router.post("/baselines", response_model=BaselineResponse, status_code=201)
-async def create_baseline(
-    baseline: BaselineCreate,
-    db: AsyncSession = Depends(get_db),
-):
-    """Create a new golden configuration baseline."""
+@router.post("/baselines", response_model=BaselineResponse)
+async def create_baseline(baseline_in: BaselineCreate, db: AsyncSession = Depends(get_db)):
+    """Creates a new baseline."""
     db_baseline = GoldenBaseline(
-        name=baseline.name,
-        description=baseline.description,
-        framework=baseline.framework,
-        rules=baseline.rules,
+        name=baseline_in.name,
+        description=baseline_in.description,
+        framework=baseline_in.framework,
+        rules=baseline_in.rules,
     )
     db.add(db_baseline)
     await db.commit()
@@ -399,18 +345,14 @@ async def create_baseline(
 
 @router.get("/baselines", response_model=list[BaselineResponse])
 async def list_baselines(db: AsyncSession = Depends(get_db)):
-    """List all golden configuration baselines."""
+    """Gets all baselines."""
     result = await db.execute(select(GoldenBaseline))
     return result.scalars().all()
 
 
 @router.post("/compliance/check")
-async def check_compliance(
-    scan_id: int,
-    baseline_id: int,
-    db: AsyncSession = Depends(get_db),
-):
-    """Check a scan's results against a golden baseline."""
+async def check_compliance(scan_id: int, baseline_id: int, db: AsyncSession = Depends(get_db)):
+    """Checks a scan against a golden baseline."""
     # Load scan data
     stmt = (
         select(Scan)
@@ -461,7 +403,7 @@ async def check_compliance(
 
 @router.get("/dashboard/stats", response_model=DashboardStats)
 async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
-    """Get aggregated statistics for the dashboard."""
+    """Gets statistics for the dashboard."""
     # Total scans
     total_scans = (await db.execute(select(func.count(Scan.id)))).scalar() or 0
 

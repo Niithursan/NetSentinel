@@ -1,13 +1,4 @@
-"""
-NetSentinel - Network Scanner Engine
-
-Core scanning logic using Scapy for:
-  • ARP host discovery (Layer 2)
-  • TCP SYN port scanning
-  • UDP port scanning
-  • Service fingerprinting (banner grabbing)
-  • OS fingerprinting (TTL heuristics)
-"""
+"""Core scanning engine using Scapy."""
 
 import asyncio
 import socket
@@ -60,7 +51,7 @@ OS_TTL_MAP = [
 
 @dataclass
 class PortResult:
-    """Result of scanning a single port."""
+    """A single scanned port."""
     port: int
     protocol: str = "tcp"
     state: str = "closed"
@@ -71,7 +62,7 @@ class PortResult:
 
 @dataclass
 class HostResult:
-    """Result of discovering and scanning a single host."""
+    """A discovered host and its ports."""
     ip: str
     mac: str = ""
     hostname: str = ""
@@ -84,17 +75,14 @@ class HostResult:
 
 
 class ScannerEngine:
-    """
-    The core scanning engine. All heavy Scapy operations run in a thread pool
-    to avoid blocking the async event loop.
-    """
+    """Scanner engine using a thread pool for blocking Scapy calls."""
 
     def __init__(self, timeout: int = 3, executor: Optional[ThreadPoolExecutor] = None):
         self.timeout = timeout
         self._executor = executor or ThreadPoolExecutor(max_workers=10)
 
     async def _run_in_thread(self, func, *args, **kwargs):
-        """Run a blocking function in the thread pool."""
+        """Runs a function in the thread pool."""
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self._executor, lambda: func(*args, **kwargs))
 
