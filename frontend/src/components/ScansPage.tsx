@@ -173,6 +173,9 @@ export default function ScansPage() {
       queryClient.invalidateQueries({ queryKey: ['scans'] });
       queryClient.invalidateQueries({ queryKey: ['dashboardStats'] });
     },
+    onError: (error) => {
+      alert(`Failed to delete scan: ${error.message}`);
+    }
   });
 
   const getStatusBadge = (status: string) => {

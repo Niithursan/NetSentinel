@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor
 
 from scapy.all import (
-    ARP, Ether, IP, TCP, UDP, ICMP, sr1, srp, conf
+    ARP, Ether, IP, TCP, UDP, ICMP, sr, sr1, srp, conf
 )
 
 logger = logging.getLogger(__name__)
@@ -182,28 +182,31 @@ class ScannerEngine:
 
     def _tcp_syn_scan(self, ip: str, ports: list[int]) -> list[PortResult]:
         """
-        Perform a TCP SYN (half-open) scan on specified ports.
+        Perform a TCP SYN (half-open) scan on specified ports in parallel.
         A SYN-ACK response means the port is open.
         """
         logger.info(f"TCP SYN scan on {ip} — {len(ports)} port(s)")
         results = []
 
-        for port in ports:
-            try:
-                pkt = IP(dst=ip) / TCP(dport=port, flags="S")
-                reply = sr1(pkt, timeout=self.timeout)
+        if not ports:
+            return results
 
+        try:
+            # Send all packets at once
+            pkt = IP(dst=ip) / TCP(dport=ports, flags="S")
+            answered, _ = sr(pkt, timeout=self.timeout, verbose=0)
+
+            for sent, reply in answered:
+                port = sent[TCP].dport
                 result = PortResult(port=port, protocol="tcp")
 
-                if reply is None:
-                    result.state = "filtered"
-                elif reply.haslayer(TCP):
+                if reply.haslayer(TCP):
                     tcp_flags = reply[TCP].flags
                     if tcp_flags == 0x12:  # SYN-ACK
                         result.state = "open"
                         result.service = COMMON_SERVICES.get(port, "")
                         # Send RST to cleanly close half-open connection
-                        sr1(IP(dst=ip) / TCP(dport=port, flags="R"), timeout=1)
+                        sr1(IP(dst=ip) / TCP(dport=port, flags="R"), timeout=0.5, verbose=0)
                     elif tcp_flags == 0x14:  # RST-ACK
                         result.state = "closed"
                 elif reply.haslayer(ICMP):
@@ -213,8 +216,8 @@ class ScannerEngine:
                     results.append(result)
                     logger.info(f"  {ip}:{port} — OPEN ({result.service})")
 
-            except Exception as e:
-                logger.debug(f"Error scanning {ip}:{port}: {e}")
+        except Exception as e:
+            logger.debug(f"Error TCP scanning {ip}: {e}")
 
         return results
 
@@ -226,23 +229,34 @@ class ScannerEngine:
 
     def _udp_scan(self, ip: str, ports: list[int]) -> list[PortResult]:
         """
-        Perform a UDP scan. If an ICMP 'port unreachable' is returned,
+        Perform a UDP scan in parallel. If an ICMP 'port unreachable' is returned,
         the port is closed. No response likely means open|filtered.
         """
         logger.info(f"UDP scan on {ip} — {len(ports)} port(s)")
         results = []
 
-        for port in ports:
-            try:
-                pkt = IP(dst=ip) / UDP(dport=port)
-                reply = sr1(pkt, timeout=self.timeout)
+        if not ports:
+            return results
 
+        try:
+            pkt = IP(dst=ip) / UDP(dport=ports)
+            answered, unans = sr(pkt, timeout=self.timeout, verbose=0)
+
+            # Ports that didn't answer are likely open|filtered
+            for sent in unans:
+                if UDP in sent:
+                    port = sent[UDP].dport
+                    result = PortResult(port=port, protocol="udp", state="open")
+                    result.service = COMMON_SERVICES.get(port, "")
+                    results.append(result)
+
+            for sent, reply in answered:
+                if UDP not in sent:
+                    continue
+                port = sent[UDP].dport
                 result = PortResult(port=port, protocol="udp")
 
-                if reply is None:
-                    result.state = "open"  # open|filtered
-                    result.service = COMMON_SERVICES.get(port, "")
-                elif reply.haslayer(ICMP):
+                if reply.haslayer(ICMP):
                     icmp_type = reply[ICMP].type
                     icmp_code = reply[ICMP].code
                     if icmp_type == 3 and icmp_code == 3:
@@ -256,8 +270,8 @@ class ScannerEngine:
                 if result.state in ("open", "filtered"):
                     results.append(result)
 
-            except Exception as e:
-                logger.debug(f"Error UDP scanning {ip}:{port}: {e}")
+        except Exception as e:
+            logger.debug(f"Error UDP scanning {ip}: {e}")
 
         return results
 
