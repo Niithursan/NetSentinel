@@ -33,7 +33,7 @@ export interface VulnerabilityInfo {
   host_ip?: string;
   scan_id?: number;
   scan_target?: string;
-  created_at?: string;
+  detected_at?: string;
 }
 
 export interface HostInfo {

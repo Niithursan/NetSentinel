@@ -1,6 +1,6 @@
+import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider, useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { Loader2, Plus, X, Radar } from 'lucide-react';
 import { fetchScans, createScan, deleteScan, fetchVulnerabilities, fetchActivityLog, fetchBaselines, createBaseline, checkCompliance, type ScanSummary } from './api';
 import Sidebar from './components/Sidebar';
@@ -19,10 +19,20 @@ const queryClient = new QueryClient({
 });
 
 function VulnerabilitiesPage() {
+  const [expandedVulns, setExpandedVulns] = useState<Set<number>>(new Set());
   const { data: vulns, isLoading } = useQuery({
     queryKey: ['vulnerabilities'],
     queryFn: fetchVulnerabilities,
   });
+
+  const toggleExpand = (id: number) => {
+    setExpandedVulns(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const getSeverityBadge = (severity: string) => {
     switch (severity.toLowerCase()) {
@@ -53,6 +63,7 @@ function VulnerabilitiesPage() {
             <table>
               <thead>
                 <tr>
+                  <th style={{ width: '40px' }}></th>
                   <th>Severity</th>
                   <th>Title</th>
                   <th>Host</th>
@@ -64,19 +75,39 @@ function VulnerabilitiesPage() {
               </thead>
               <tbody>
                 {vulns.map((vuln) => (
-                  <tr key={vuln.id}>
-                    <td>
-                      <span className={`badge ${getSeverityBadge(vuln.severity)}`}>
-                        {vuln.severity.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ fontWeight: 500 }}>{vuln.title}</td>
-                    <td style={{ fontFamily: 'var(--font-mono)' }}>{vuln.host_ip}</td>
-                    <td>{vuln.port_number || 'N/A'}</td>
-                    <td>{vuln.service || 'N/A'}</td>
-                    <td>{vuln.cve_id || 'N/A'}</td>
-                    <td style={{ color: 'var(--text-tertiary)' }}>{vuln.scan_target}</td>
-                  </tr>
+                  <React.Fragment key={vuln.id}>
+                    <tr 
+                      onClick={() => toggleExpand(vuln.id)} 
+                      style={{ cursor: 'pointer', transition: 'background-color 0.2s' }}
+                      className="hover-row"
+                    >
+                      <td style={{ color: 'var(--text-tertiary)', textAlign: 'center' }}>
+                        {expandedVulns.has(vuln.id) ? '▼' : '▶'}
+                      </td>
+                      <td>
+                        <span className={`badge ${getSeverityBadge(vuln.severity)}`}>
+                          {vuln.severity.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 500 }}>{vuln.title}</td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>{vuln.host_ip}</td>
+                      <td>{vuln.port_number || 'N/A'}</td>
+                      <td>{vuln.service || 'N/A'}</td>
+                      <td>{vuln.cve_id || 'N/A'}</td>
+                      <td style={{ color: 'var(--text-tertiary)' }}>{vuln.scan_target}</td>
+                    </tr>
+                    {expandedVulns.has(vuln.id) && (
+                      <tr style={{ background: 'var(--surface-active)' }}>
+                        <td></td>
+                        <td colSpan={7} style={{ padding: '16px 24px' }}>
+                          <h4 style={{ margin: '0 0 8px 0', color: 'var(--text-primary)', fontSize: '14px' }}>Description</h4>
+                          <p style={{ margin: 0, color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'pre-wrap', fontSize: '14px' }}>
+                            {vuln.description || 'No description provided.'}
+                          </p>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

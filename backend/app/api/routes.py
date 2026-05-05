@@ -289,7 +289,7 @@ async def list_vulnerabilities(db: AsyncSession = Depends(get_db)):
         vuln_dict = {
             "id": vuln.id,
             "title": vuln.title,
-            "severity": vuln.severity,
+            "severity": vuln.severity.value if hasattr(vuln.severity, 'value') else vuln.severity,
             "port_number": vuln.port_number,
             "service": vuln.service,
             "cve_id": vuln.cve_id,
@@ -297,7 +297,7 @@ async def list_vulnerabilities(db: AsyncSession = Depends(get_db)):
             "host_ip": ip,
             "scan_id": scan_id,
             "scan_target": target,
-            "created_at": vuln.created_at.isoformat() if vuln.created_at else None
+            "detected_at": vuln.detected_at.isoformat() if vuln.detected_at else None
         }
         vulns.append(vuln_dict)
         
