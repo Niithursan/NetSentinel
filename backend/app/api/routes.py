@@ -494,6 +494,32 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
     recent_result = await db.execute(recent_stmt)
     recent_scans = recent_result.scalars().all()
 
+    # Severity distribution for Pie Chart
+    severity_distribution = [
+        {"name": "Critical", "value": critical},
+        {"name": "High", "value": high},
+        {"name": "Medium", "value": medium},
+        {"name": "Low", "value": low},
+    ]
+
+    # Activity history (last 7 days)
+    # Using a simple query to group by date
+    activity_stmt = (
+        select(func.date(Scan.created_at), func.count(Scan.id))
+        .group_by(func.date(Scan.created_at))
+        .order_by(func.date(Scan.created_at).desc())
+        .limit(7)
+    )
+    activity_result = await db.execute(activity_stmt)
+    activity_history = [
+        {"date": date, "count": count} 
+        for date, count in reversed(activity_result.all())
+    ]
+
+    # If no activity history, add some padding
+    if not activity_history:
+        activity_history = [{"date": datetime.utcnow().date().isoformat(), "count": 0}]
+
     return DashboardStats(
         total_scans=total_scans,
         total_hosts_discovered=total_hosts,
@@ -504,4 +530,6 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)):
         medium_count=medium,
         low_count=low,
         recent_scans=recent_scans,
+        severity_distribution=severity_distribution,
+        activity_history=activity_history,
     )

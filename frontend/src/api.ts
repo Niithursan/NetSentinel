@@ -79,6 +79,8 @@ export interface DashboardStats {
   medium_count: number;
   low_count: number;
   recent_scans: ScanSummary[];
+  severity_distribution: { name: string; value: number }[];
+  activity_history: { date: string; count: number }[];
 }
 
 export interface RemediationResponse {

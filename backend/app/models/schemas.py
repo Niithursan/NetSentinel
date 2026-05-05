@@ -283,6 +283,8 @@ class DashboardStats(BaseModel):
     medium_count: int
     low_count: int
     recent_scans: list[ScanSummary]
+    severity_distribution: list[dict]
+    activity_history: list[dict]
 
 class SystemEventResponse(BaseModel):
     id: int

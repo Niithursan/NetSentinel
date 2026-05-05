@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
+  PieChart, Pie, Cell, AreaChart, Area, CartesianGrid,
 } from 'recharts';
 import { fetchDashboardStats, type DashboardStats, type ScanSummary } from '../api';
 
@@ -221,97 +221,148 @@ function DashboardContent({ stats }: { stats: DashboardStats }) {
               <h3 className="card-title">Severity Breakdown</h3>
               <p className="card-subtitle">Vulnerability distribution</p>
             </div>
-            <AlertTriangle size={18} style={{ color: 'var(--text-tertiary)' }} />
+            <ShieldAlert size={18} style={{ color: 'var(--text-tertiary)' }} />
           </div>
-          {severityData.length > 0 ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '32px' }}>
-              <ResponsiveContainer width="50%" height={180}>
-                <PieChart>
-                  <Pie
-                    data={severityData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={45}
-                    outerRadius={75}
-                    paddingAngle={4}
-                    dataKey="value"
-                    strokeWidth={0}
-                  >
-                    {severityData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      background: 'var(--bg-secondary)',
-                      border: '1px solid var(--border-default)',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: '13px',
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {severityData.map((item) => (
-                  <div key={item.name} style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{
-                      width: '10px', height: '10px', borderRadius: '3px',
-                      background: item.color,
-                    }} />
-                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                      {item.name}
-                    </span>
-                    <span style={{
-                      fontSize: '14px', fontWeight: 600,
-                      fontFamily: 'var(--font-mono)',
-                      color: 'var(--text-primary)',
-                    }}>
-                      {item.value}
-                    </span>
-                  </div>
-                ))}
+          <div style={{ height: '220px', display: 'flex', alignItems: 'center' }}>
+            {severityData.length > 0 ? (
+              <>
+                <ResponsiveContainer width="50%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={severityData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                      strokeWidth={0}
+                    >
+                      {severityData.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      contentStyle={{
+                        background: 'var(--bg-secondary)',
+                        border: '1px solid var(--border-default)',
+                        borderRadius: 'var(--radius-md)',
+                        fontSize: '12px',
+                        color: 'var(--text-primary)'
+                      }}
+                      itemStyle={{ color: 'var(--text-primary)' }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', flex: 1 }}>
+                  {severityData.map((item) => (
+                    <div key={item.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color }} />
+                        <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{item.name}</span>
+                      </div>
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)' }}>{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="empty-state" style={{ width: '100%' }}>
+                <ShieldAlert size={32} />
+                <p>No vulnerabilities detected</p>
               </div>
-            </div>
-          ) : (
-            <div className="empty-state" style={{ padding: '30px' }}>
-              <ShieldAlert size={32} />
-              <h3>No vulnerabilities</h3>
-              <p>Run a scan to detect potential issues</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
-        {/* Scan History */}
+        {/* Activity Timeline */}
         <div className="card">
           <div className="card-header">
             <div>
-              <h3 className="card-title">Scan Activity</h3>
-              <p className="card-subtitle">Hosts, ports & vulns per scan</p>
+              <h3 className="card-title">Scan Activity History</h3>
+              <p className="card-subtitle">Total scans over last 7 days</p>
             </div>
+            <Clock size={18} style={{ color: 'var(--text-tertiary)' }} />
           </div>
-          {barData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={barData}>
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+          <div style={{ height: '220px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={stats.activity_history} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--accent-blue)" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="var(--accent-blue)" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-default)" opacity={0.5} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} 
+                  axisLine={false}
+                  tickLine={false}
+                  tickFormatter={(val) => val.split('-').slice(1).join('/')}
+                />
+                <YAxis 
+                  tick={{ fontSize: 10, fill: 'var(--text-tertiary)' }} 
+                  axisLine={false}
+                  tickLine={false}
+                />
                 <Tooltip
                   contentStyle={{
                     background: 'var(--bg-secondary)',
                     border: '1px solid var(--border-default)',
                     borderRadius: 'var(--radius-md)',
-                    fontSize: '13px',
+                    fontSize: '12px',
+                    color: 'var(--text-primary)'
                   }}
                 />
-                <Bar dataKey="hosts" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="ports" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="vulns" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                <Area 
+                  type="monotone" 
+                  dataKey="count" 
+                  stroke="var(--accent-blue)" 
+                  fillOpacity={1} 
+                  fill="url(#colorCount)" 
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Comparison Chart */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div className="card-header">
+          <div>
+            <h3 className="card-title">Scan Comparison</h3>
+            <p className="card-subtitle">Metric comparison across recent scan targets</p>
+          </div>
+        </div>
+        <div style={{ height: '280px' }}>
+          {barData.length > 0 ? (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={barData} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-default)" opacity={0.3} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: 'var(--text-tertiary)' }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(255, 255, 255, 0.05)' }}
+                  contentStyle={{
+                    background: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 'var(--radius-md)',
+                    fontSize: '12px',
+                    color: 'var(--text-primary)'
+                  }}
+                />
+                <Bar dataKey="hosts" name="Hosts" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+                <Bar dataKey="ports" name="Open Ports" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={20} />
+                <Bar dataKey="vulns" name="Vulnerabilities" fill="#ef4444" radius={[4, 4, 0, 0]} barSize={20} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="empty-state" style={{ padding: '30px' }}>
+            <div className="empty-state">
               <Radar size={32} />
-              <h3>No scan data</h3>
-              <p>Complete a scan to see activity charts</p>
+              <p>Insufficient scan data for comparison</p>
             </div>
           )}
         </div>
