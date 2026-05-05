@@ -4,8 +4,6 @@
 
 NetSentinel is a full-stack security tool that combines custom packet crafting with AI-driven analysis to discover hosts, fingerprint services, and generate actionable remediation advisories.
 
-![Dashboard Preview](docs/dashboard-preview.png)
-
 ## ✨ Features
 
 - **ARP Host Discovery** — Layer 2 network scanning with Scapy
@@ -14,7 +12,7 @@ NetSentinel is a full-stack security tool that combines custom packet crafting w
 - **Service Fingerprinting** — Banner grabbing and version detection
 - **OS Fingerprinting** — TTL-based operating system identification
 - **AI Vulnerability Analysis** — Gemini-powered threat identification
-- **AI Remediation Advisories** — Plain-English fix recommendations
+- **Rich AI Remediation Advisories** — Markdown-formatted, plain-English fix recommendations and specific commands
 - **Golden Baseline Compliance** — Check against security configuration standards
 - **Real-time Dashboard** — Visualize network topology and vulnerability status
 
@@ -27,7 +25,6 @@ NetSentinel is a full-stack security tool that combines custom packet crafting w
 | **AI** | Google Gemini API |
 | **Frontend** | React, TypeScript, Vite |
 | **Charts** | Recharts |
-| **Deployment** | Docker, Docker Compose |
 
 ## 🚀 Quick Start
 
@@ -35,7 +32,7 @@ NetSentinel is a full-stack security tool that combines custom packet crafting w
 
 - Python 3.11+
 - Node.js 20+
-- Docker (optional, recommended)
+- Administrator Privileges (required for Scapy network scanning)
 
 ### 1. Clone & Configure
 
@@ -46,31 +43,34 @@ cp .env.example .env
 # Edit .env and add your GEMINI_API_KEY
 ```
 
-### 2. Backend Setup
+### 2. Start Application (Windows)
 
+We provide a convenient startup script for Windows users that handles dependencies and launches both the backend and frontend simultaneously.
+
+```cmd
+start.bat
+```
+
+> ⚠️ **Note:** The script will automatically install backend requirements, start the FastAPI server on port 8000, run npm install, and start the React frontend. Please ensure you run this from an Administrator terminal so Scapy can craft raw packets.
+
+### 3. Start Application (Manual/Linux/macOS)
+
+**Terminal 1 (Backend):**
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+source venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload
+# Must be run as root/admin for raw sockets
+sudo uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 3. Frontend Setup
-
+**Terminal 2 (Frontend):**
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
-
-### 4. Docker (Alternative)
-
-```bash
-docker compose up --build
-```
-
-> ⚠️ **Note:** Network scanning requires root/admin privileges. When using Docker, the container runs with `CAP_NET_RAW` for Scapy access.
 
 ## 📡 API Endpoints
 
@@ -103,17 +103,15 @@ NetSentinel/
 │   │   ├── scanner/
 │   │   │   └── engine.py        # Scapy scanning engine
 │   │   └── main.py              # FastAPI app entry point
-│   ├── requirements.txt
-│   └── Dockerfile
+│   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── components/          # React components
 │   │   ├── api.ts               # API client
 │   │   ├── App.tsx              # Root component
 │   │   └── index.css            # Design system
-│   ├── package.json
-│   └── Dockerfile
-├── docker-compose.yml
+│   └── package.json
+├── start.bat                    # Windows startup script
 ├── .env.example
 └── README.md
 ```
